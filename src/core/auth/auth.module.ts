@@ -1,7 +1,3 @@
-import { AuthController } from './auth.controller';
-import { AuthListener } from './auth.listener';
-import { AuthService } from './auth.service';
-
 import { Module, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
@@ -9,12 +5,18 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import type { SignOptions } from 'jsonwebtoken';
 
-import { QueueModule } from '../queue/queue.module';
+import { QueueModule } from '../../infrastructure/queue/queue.module';
 import { UsersModule } from '../users/users.module';
 
+import { AuthController } from './controllers/auth.controller';
 import { RefreshToken } from './entities/refresh-token.entity';
-import { JwtStrategy } from './strategy/jwt.strategy';
-import { LocalStrategy } from './strategy/local.strategy';
+import { AuthListener } from './listeners/auth-events.listener';
+import { AuthService } from './services/auth.service';
+import { EmailVerificationService } from './services/email-verification.service';
+import { PasswordResetService } from './services/password-reset.service';
+import { TokenService } from './services/token.service';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { LocalStrategy } from './strategies/local.strategy';
 
 @Module({
   imports: [
@@ -40,7 +42,21 @@ import { LocalStrategy } from './strategy/local.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy, AuthListener],
-  exports: [AuthService, JwtModule],
+  providers: [
+    AuthService,
+    TokenService,
+    EmailVerificationService,
+    PasswordResetService,
+    LocalStrategy,
+    JwtStrategy,
+    AuthListener,
+  ],
+  exports: [
+    AuthService,
+    TokenService,
+    EmailVerificationService,
+    PasswordResetService,
+    JwtModule,
+  ],
 })
 export class AuthModule {}

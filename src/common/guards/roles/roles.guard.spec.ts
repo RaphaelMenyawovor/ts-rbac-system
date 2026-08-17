@@ -3,7 +3,7 @@ import { RolesGuard } from './roles.guard';
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
-import { UserRole } from '../../../core/auth/entities/user.entity';
+import { UserRole } from '../../../core/users/entities/user.entity';
 
 describe('RolesGuard', () => {
   const createContext = (user?: { role: UserRole }): ExecutionContext =>
