@@ -3,20 +3,17 @@ import { Logger } from '@nestjs/common';
 
 import { Job } from 'bullmq';
 
-import { AuthService } from '../auth.service';
-
-interface AuthJobData {
-  email: string;
-}
+import { PasswordResetService } from '../services/password-reset.service';
+import { AuthJobData } from '../types/auth.types';
 
 @Processor('auth')
 export class AuthProcessor extends WorkerHost {
   private readonly logger = new Logger(AuthProcessor.name);
-  private authService: AuthService;
+  private readonly passwordResetService: PasswordResetService;
 
-  constructor(authService: AuthService) {
+  constructor(passwordResetService: PasswordResetService) {
     super();
-    this.authService = authService;
+    this.passwordResetService = passwordResetService;
   }
 
   async process(job: Job<AuthJobData>): Promise<void> {
@@ -24,7 +21,7 @@ export class AuthProcessor extends WorkerHost {
 
     switch (job.name) {
       case 'reset-password':
-        await this.authService.forgotPassword(job.data.email);
+        await this.passwordResetService.forgotPassword(job.data.email);
         break;
       default:
         throw new Error(`Unknown job: ${job.name}`);

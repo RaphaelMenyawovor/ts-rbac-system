@@ -1,0 +1,132 @@
+import { AuthService } from './auth.service';
+import { EmailVerificationService } from './email-verification.service';
+import { TokenService } from './token.service';
+
+import {
+  BadRequestException,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+
+import * as bcrypt from 'bcrypt';
+
+import {
+  AccountStatus,
+  User,
+  UserRole,
+} from '../../users/entities/user.entity';
+import { UsersService } from '../../users/services/users.service';
+
+jest.mock('bcrypt', () => ({ compare: jest.fn(), hash: jest.fn() }));
+
+describe('AuthService', () => {
+  const user = (overrides: Partial<User> = {}): User =>
+    ({
+      id: 'user-id',
+      email: 'user@example.com',
+      name: 'user',
+      password: 'hashed-password',
+      role: UserRole.USER,
+      status: AccountStatus.ACTIVE,
+      isVerified: true,
+      loginAttempts: 0,
+      lockedUntil: null,
+      ...overrides,
+    }) as User;
+
+  let service: AuthService;
+  let users: Record<string, jest.Mock>;
+  let tokens: Record<string, jest.Mock>;
+  let verification: Record<string, jest.Mock>;
+  let events: { emit: jest.Mock };
+  const compare = bcrypt.compare as jest.Mock;
+  const hash = bcrypt.hash as jest.Mock;
+
+  beforeEach(() => {
+    users = {
+      findOneByEmailWithPassword: jest.fn(),
+      findOneByEmail: jest.fn(),
+      incrementFailedAttempts: jest.fn(),
+      resetFailedAttempts: jest.fn(),
+      create: jest.fn(),
+    };
+    tokens = { issueTokenPair: jest.fn() };
+    verification = { createToken: jest.fn() };
+    events = { emit: jest.fn() };
+    compare.mockReset();
+    hash.mockReset();
+    service = new AuthService(
+      users as unknown as UsersService,
+      tokens as unknown as TokenService,
+      verification as unknown as EmailVerificationService,
+      events as unknown as EventEmitter2,
+    );
+  });
+
+  it('rejects a duplicate registration before hashing', async () => {
+    users.findOneByEmail.mockResolvedValue(user());
+
+    await expect(
+      service.register({ email: 'user@example.com', password: 'password123' }),
+    ).rejects.toEqual(new BadRequestException('Email is already registered'));
+    expect(hash).not.toHaveBeenCalled();
+  });
+
+  it('creates a user, creates a verification token, and emits an event', async () => {
+    const createdUser = user({ id: 'new-user', email: 'new@example.com' });
+    users.findOneByEmail.mockResolvedValue(null);
+    users.create.mockResolvedValue(createdUser);
+    hash.mockResolvedValue('hashed-password');
+    verification.createToken.mockResolvedValue('verification-token');
+
+    await expect(
+      service.register({ email: createdUser.email, password: 'password123' }),
+    ).resolves.toEqual({ id: createdUser.id, email: createdUser.email });
+    expect(events.emit).toHaveBeenCalledWith('user.registered', {
+      email: createdUser.email,
+      token: 'verification-token',
+    });
+  });
+
+  it('issues a token pair after successful login', async () => {
+    const account = user();
+    users.findOneByEmailWithPassword.mockResolvedValue(account);
+    compare.mockResolvedValue(true);
+    tokens.issueTokenPair.mockResolvedValue({
+      accessToken: 'access',
+      refreshToken: 'refresh',
+    });
+
+    await expect(
+      service.login({ email: account.email, password: 'password123' }),
+    ).resolves.toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    expect(tokens.issueTokenPair).toHaveBeenCalledWith(
+      account,
+      expect.any(String),
+    );
+  });
+
+  it('records failed password attempts', async () => {
+    const account = user();
+    users.findOneByEmailWithPassword.mockResolvedValue(account);
+    compare.mockResolvedValue(false);
+
+    await expect(service.validateUser(account.email, 'wrong')).rejects.toEqual(
+      new UnauthorizedException('Invalid credentials'),
+    );
+    expect(users.incrementFailedAttempts).toHaveBeenCalledWith(account.id);
+  });
+
+  it('rejects an unverified user after a valid password', async () => {
+    const account = user({ isVerified: false });
+    users.findOneByEmailWithPassword.mockResolvedValue(account);
+    compare.mockResolvedValue(true);
+
+    await expect(
+      service.validateUser(account.email, 'password'),
+    ).rejects.toEqual(
+      new ForbiddenException('Please verify your email to continue'),
+    );
+  });
+});

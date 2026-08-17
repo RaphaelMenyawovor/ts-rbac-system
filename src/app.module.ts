@@ -1,8 +1,5 @@
 // Import all the system modules here
 // Import Controller and Service
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -11,14 +8,16 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import appConfig from './config/app.config';
+import { databaseConfig } from './config/database.config';
+import redisConfig from './config/redis.config';
 import { AuthModule } from './core/auth/auth.module';
-import { EventsModule } from './core/events/events.module';
-import { QueueModule } from './core/queue/queue.module';
-import { RedisModule } from './core/redis/redis.module';
+import { AppController } from './core/health/app.controller';
+import { AppService } from './core/health/app.service';
+import { EventsModule } from './core/users/listeners/events.module';
 import { UsersModule } from './core/users/users.module';
-import appConfig from './shared/config/app.config';
-import { databaseConfig } from './shared/config/database.config';
-import redisConfig from './shared/config/redis.config';
+import { QueueModule } from './infrastructure/queue/queue.module';
+import { RedisModule } from './infrastructure/redis/redis.module';
 
 @Module({
   imports: [
